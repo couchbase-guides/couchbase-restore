@@ -1,57 +1,67 @@
+:imagesdir: images
+
 = Restore Data to Couchbase Database
 
-Backing up data for a Couchbase database is an essential part of Disaster Recovery plan. This ensures that the data can be restored to the last backup in case of a disaster. This quick start guide will show how to restore data using Couchbase Community Edition. https://github.com/couchbase-guides/couchbase-backup[Another guide] shows how to backup data from a Couchbase server.
+Backing up data for a Couchbase database is an essential part of a Disaster Recovery plan. This ensures that the data can be restored to the last backup in case of a disaster. This quick start guide will show how to backup data using Couchbase Community Edition. https://github.com/couchbase-guides/couchbase-backup[Another guide shows how to backup data] from a Couchbase server.
 
-The https://developer.couchbase.com/documentation/server/current/backup-restore/backup-restore.html[cbrestore] tool in Couchbase Community Edition will be used in this guide.
+Couchbase Server has a command line tool called `cbbackupmgr`. Complete details about this tool is at https://developer.couchbase.com/documentation/server/current/backup-restore/enterprise-backup-restore.html[cbbackupmgr].
 
-In addition, Couchbase Enterprise Edition also has the `cbbackupmgr` tool. Complete details about this tool is at https://developer.couchbase.com/documentation/server/current/backup-restore/enterprise-backup-restore.html[cbbackupmgr].
+For this guide, Couchbase Server is installed locally on a Windows machine. But similar instructions can be followed for other operating systems or cloud deployment.
 
-For this guide, Couchbase server is installed using https://github.com/couchbase-guides/couchbase-amazon-cli[Couchbase install on Amazon EC2].
+I'm assuming you've already done the "backup" quick start guide, and you have a backup archive in a folder named `couchbasebackups`.
+
+Remember that you can run cbbackupmgr's `list` command to get information about a backup archive folder.
+
+[source,PowerShell]
+----
+PS C:\zproj> & 'C:\Program Files\Couchbase\Server\bin\cbbackupmgr.exe' list --archive C:\zproj\couchbasebackups\
+ Size      Items          Name
+ 567.91MB  -              /
+ 567.91MB  -              + cluster
+ 317.76MB  -                  + 2017-06-12T15_05_13.877654-04_00
+ 50.31MB   -                      + mybucket
+----
+
+Take note of the timestamp `2017-06-12T15_05_13.877654-04_00`.
 
 == Restore Data to Couchbase Server
 
-You may like to restore the backed up data on a different server, likely for local testing or development.
+I've removed all the documents from all the buckets from my Couchbase cluster in preparation for the restore.
 
-Backed up data can be restored to a Couchbase database as:
+image:01-empty-buckets.png[No documents in any buckets]
 
-```
-cbrestore \
-    -b twitter \
-    -B twitter \
-    -u <admin-username> \
-    -p <admin-password> \
-    var/lib/couchbase/backups \
-    http://localhost:8091
-```
+Note that the bucket must exist: the restore command will not create a bucket for you.
 
-In this command:
+To restore all the buckets, run this command:
 
-. `-b` specify the source bucket
-. `-B` specify the destination bucket. Make sure the destination is already created.
-. `-u` specify the admin username for the node/cluster
-. `-p` specify the admin password for the node/cluster
-. `var/lib/couchbase/backups` is the directory extracted from the tar file that contains backup data
-. `localhost:8091` is the destination Couchbase host and port
+[source,PowerShell]
+----
+PS C:\myprojects> & 'C:\Program Files\Couchbase\Server\bin\cbbackupmgr.exe' restore
+    --archive C:\myprojects\couchbasebackups\
+    --repo cluster
+    --c http://localhost:8091
+    --username Administrator
+    --password password
+    --start 2017-06-12T15_05_13.877654-04_00
+    --end 2017-06-12T15_05_13.877654-04_00
 
-This command will succeed if the source and destination operating systems are Unix. However, on Mac OS, this command will give the following error:
+(1/1) Restoring backup 2017-06-12T15_05_13.877654-04_00
+Copied all data in 22.25s (Avg. 2.17MB/Sec)                                                       75700 items / 47.76MB
+mybucket                 [=====================================================================================] 100.00%
+travel-sample           [=====================================================================================] 100.00%
+myotherbucket              [=====================================================================================] 100.00%
 
-```
-2017-01-10 19:50:48,660: s0 error: async operation: error: map missing vbucket_id: 512; perhaps your source does not have vbuckets; if so, try using moxi (HOST:11211) as a destination on sink: http://localhost:8091(twitter@127.0.0.1:8091)
-error: map missing vbucket_id: 512; perhaps your source does not have vbuckets; if so, try using moxi (HOST:11211) as a destination
-```
+Restore completed successfully
+PS C:\myprojects>
+----
 
-This error occurs because Couchbase creates 64 vBuckets on Mac OS and 1024 vBuckets on every where else. The concept of vBuckets is explained at https://developer.couchbase.com/documentation/server/current/concepts/distributed-data-management.html[Couchbase Distributed Data Management]. The database was backed up from a Couchbase database running on Ubuntu and restored on a Couchbase database running on Mac OS. Fixing this error requires to rehash the data correctly from 1024 vBuckets on Ubuntu to 64 vBuckets on Mac OS. 
+Some notes about what you're doing here:
 
-The option that enables rehashing can be included in the original command. The updated command that restores the data is:
+* `--archive` specifies the archive folder which was created for the backup
+* `--repo` specifies the repo within the archive
+* `--c`, `--username`, `--password` specify where to connect to the cluster, and the cluster credentials
+* `--start` and `--end` specify the timestamp to start the restore from. I'm only going to restore from one backup, so start and end are the same.
 
-```
-cbrestore \
-    -b twitter \
-    -B twitter 
-    var/lib/couchbase/backups \
-    http://localhost:8091
-    -x rehash=1
-```
+== Summary
 
-Complete details about the `cbrestore` command, including all the options, are explained at https://developer.couchbase.com/documentation/server/current/cli/cbrestore-tool.html
-
+In this quick start guide, you went from a backup to restore. The cbbackupmgr tool has a lot of options to suit your needs, so make sure to check out the full documentation to see how it fits your organization's backup strategy. Also check out the link:https://github.com/couchbase-guides/couchbase-backup[Backup quick start guide]. And remember to test your backups and your backup process, so you can have confidence when something goes sideways.
